@@ -8,7 +8,7 @@ title C4 Container - Marketplace
 Person(buyer, "Покупатель", "Просматривает ленту, оформляет заказы")
 Person(seller, "Продавец", "Ведёт каталог, получает выплаты")
 
-Container(web, "Web / Mobile App", "React / iOS / Android", "Клиентское приложение")
+Container(web, "Web / Mobile App", "client", "Клиентское приложение")
 Container(gw, "API Gateway", "Python, FastAPI", "Единая точка входа, маршрутизация")
 
 System_Boundary(domain, "Доменные сервисы") {

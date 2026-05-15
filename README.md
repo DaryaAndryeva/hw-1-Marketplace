@@ -21,9 +21,7 @@ hw-1/
 
 Исходник: [`diagrams/container.puml`](diagrams/container.puml).
 
-### Общий вид: запросы пользователя
-
-Основной поток — сплошные стрелки сверху вниз: клиент идёт в Web, Web в Gateway, Gateway в доменные сервисы. Внешние интеграции справа.
+Сплошные стрелки — основной поток запроса пользователя (`клиент → Web → Gateway → доменные сервисы`) и интеграции с внешними системами. Пунктирные с подписями — синхронные REST-вызовы между доменными сервисами.
 
 ```mermaid
 flowchart TB
@@ -36,8 +34,8 @@ flowchart TB
     buyer(("Покупатель")):::actor
     seller(("Продавец")):::actor
 
-    web["Web / Mobile App<br/><i>React / iOS / Android</i>"]:::client
-    gw["API Gateway<br/><i>FastAPI</i>"]:::gateway
+    web["Web / Mobile App"]:::client
+    gw["API Gateway"]:::gateway
 
     subgraph svc["Доменные сервисы (у каждого своя БД)"]
         direction LR
@@ -57,44 +55,28 @@ flowchart TB
     web -- REST --> gw
     gw -- REST --> svc
 
+    recs -. профиль .-> users
+    recs -. товары .-> catalog
+    orders -. остатки .-> catalog
+    orders -. списание .-> payments
+    orders -. статус .-> notify
+
     payments -- HTTPS --> psp
     notify -- HTTPS --> channels
 ```
 
-### Межсервисные вызовы
-
-Только взаимодействия между доменными сервисами — без актёров и web. Все стрелки — синхронный REST.
-
-```mermaid
-flowchart LR
-    classDef service fill:#dcfce7,stroke:#166534,color:#000
-
-    users["Users"]:::service
-    catalog["Catalog"]:::service
-    recs["Recommendations"]:::service
-    orders["Orders"]:::service
-    payments["Payments"]:::service
-    notify["Notifications"]:::service
-
-    recs -- профиль --> users
-    recs -- товары --> catalog
-    orders -- остатки --> catalog
-    orders -- списание --> payments
-    orders -- статус --> notify
-```
-
 ### Контейнеры и владение данными
 
-| Контейнер | Технология | Ответственность | Своя БД |
-|---|---|---|---|
-| Web / Mobile App | React / iOS / Android | Клиент | — |
-| API Gateway | Python, FastAPI | Единая точка входа, маршрутизация | — |
-| Users | — | Пользователи, авторизация, профиль | Users DB |
-| Catalog | — | Товары, категории, остатки | Catalog DB |
-| Recommendations | — | Персональная лента | Recs DB |
-| Orders | — | Корзина, заказы, статусы | Orders DB |
-| Payments | — | Платежи и выплаты | Payments DB |
-| Notifications | — | Уведомления о статусах | Notify DB |
+| Контейнер | Ответственность | Своя БД |
+|---|---|---|
+| Web / Mobile App | Клиентское приложение | — |
+| API Gateway | Единая точка входа, маршрутизация | — |
+| Users | Пользователи, авторизация, профиль | Users DB |
+| Catalog | Товары, категории, остатки | Catalog DB |
+| Recommendations | Персональная лента | Recs DB |
+| Orders | Корзина, заказы, статусы | Orders DB |
+| Payments | Платежи и выплаты | Payments DB |
+| Notifications | Уведомления о статусах | Notify DB |
 
 Каждый доменный сервис владеет своей БД, общих баз между сервисами нет — доступ к чужим данным только через REST API соответствующего сервиса. Это даёт независимое масштабирование, изоляцию платежей и персональных данных и прямое соответствие пунктам ТЗ (лента → Recommendations, каталог → Catalog, пользователи → Users, заказы → Orders, платежи → Payments, уведомления → Notifications).
 
