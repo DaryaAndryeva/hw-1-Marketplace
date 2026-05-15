@@ -4,93 +4,53 @@
 LAYOUT_WITH_LEGEND()
 LAYOUT_TOP_DOWN()
 
-title C4 Container — Marketplace Platform
+title C4 Container — Marketplace (упрощённо)
 
 Person(buyer,  "Покупатель")
 Person(seller, "Продавец")
 
-System_Boundary(mp, "Marketplace Platform") {
+System_Boundary(mp, "Marketplace") {
 
-    Container(web, "Web / Mobile App", "React, iOS, Android", "Клиентские приложения покупателя и продавца")
+    Container(web, "Web / Mobile App", "", "Клиент")
+    Container(gw,  "API Gateway", "FastAPI", "Точка входа *(поднимается в этом ДЗ)*")
 
-    Container(gw,  "API Gateway", "FastAPI / Envoy",
-        "Единая точка входа.\nTLS termination, аутентификация, rate-limit,\nмаршрутизация и агрегация ответов.\n*В этом ДЗ поднимается в Docker.*")
+    Container(identity,   "Identity",    "", "Пользователи, роли *(своя БД)*")
+    Container(catalog,    "Catalog",     "", "Товары, остатки, цены *(своя БД)*")
+    Container(feed,       "Search & Feed", "", "Поиск и лента *(свои хранилища)*")
+    Container(order,      "Ordering",    "", "Корзина, заказы *(своя БД)*")
+    Container(payment,    "Payments",    "", "Платежи, выплаты *(своя БД, PCI)*")
+    Container(notify,     "Notifications", "", "Отправка уведомлений *(своя БД)*")
 
-    ' --- Identity ---
-    Container(identity,   "Identity Service",      "Python/Go",   "Пользователи, сессии, роли, KYC")
-    ContainerDb(identityDb, "Identity DB",         "PostgreSQL",  "users, sessions, seller_profiles")
-
-    ' --- Catalog ---
-    Container(catalog,    "Catalog Service",       "Go",          "Товары, категории, остатки, цены, модерация")
-    ContainerDb(catalogDb,"Catalog DB",            "PostgreSQL",  "products, sku, categories, inventory, prices")
-
-    ' --- Search & Feed ---
-    Container(feed,       "Search & Feed Service", "Python",      "Поиск, фасеты, персональная лента, ранжирование")
-    ContainerDb(feedIdx,  "Search Index",          "OpenSearch",  "Денормализованный индекс товаров")
-    ContainerDb(feedStr,  "Feed Store",            "Redis / ClickHouse", "User events, ranking features")
-
-    ' --- Ordering ---
-    Container(order,      "Ordering Service",      "Java/Kotlin", "Корзина, чекаут, оркестратор саги, статусы заказа")
-    ContainerDb(orderDb,  "Order DB",              "PostgreSQL",  "carts, orders, order_items")
-
-    ' --- Payments ---
-    Container(payment,    "Payments Service",      "Java",        "Авторизация платежей, выплаты, возвраты\n(PCI-зона)")
-    ContainerDb(payDb,    "Payments DB",           "PostgreSQL",  "payments, transactions, payouts, refunds")
-
-    ' --- Notifications ---
-    Container(notify,     "Notifications Service", "Python",      "Email/Push/SMS, шаблоны, retry")
-    ContainerDb(notifyDb, "Notifications DB",      "PostgreSQL",  "notifications, templates, delivery_attempts")
-
-    ContainerQueue(bus,   "Event Bus",             "Apache Kafka","Доменные события между сервисами")
+    ContainerQueue(bus, "Kafka", "", "Обмен событиями между доменами")
 }
 
-System_Ext(psp,   "Payment Provider", "External PSP")
-System_Ext(email, "Email Provider")
-System_Ext(push,  "Push Provider")
-System_Ext(sms,   "SMS Provider")
+System_Ext(psp,   "Payment Provider", "")
+System_Ext(ch, "Каналы уведомлений", "Email / Push / SMS провайдеры")
 
-' Users -> client
-Rel(buyer,  web, "Использует", "HTTPS")
-Rel(seller, web, "Использует", "HTTPS")
+Rel(buyer,  web, "HTTPS")
+Rel(seller, web, "HTTPS")
+Rel(web, gw, "HTTPS / REST")
 
-' Client -> Gateway
-Rel(web, gw, "REST / JSON", "HTTPS, sync")
+Rel(gw, identity, "прокси", "sync REST/gRPC")
+Rel(gw, catalog,  "прокси", "sync")
+Rel(gw, feed,     "прокси", "sync")
+Rel(gw, order,    "прокси", "sync")
+Rel(gw, payment,  "прокси", "sync")
 
-' Gateway -> services (sync, read- и write-path)
-Rel(gw, identity, "Auth, профили",          "gRPC, sync")
-Rel(gw, catalog,  "Карточки, листинг",      "gRPC, sync")
-Rel(gw, feed,     "Лента и поиск",          "gRPC, sync")
-Rel(gw, order,    "Корзина и чекаут",       "gRPC, sync")
-Rel(gw, payment,  "Статус платежа",         "gRPC, sync")
+Rel(catalog, bus, "события", "Kafka")
+Rel(order,   bus, "события", "Kafka")
+Rel(bus, feed, "события", "Kafka")
+Rel(bus, notify, "события", "Kafka")
 
-' Services -> their own DBs (RW)
-Rel(identity, identityDb, "RW")
-Rel(catalog,  catalogDb,  "RW")
-Rel(feed,     feedIdx,    "RW")
-Rel(feed,     feedStr,    "RW")
-Rel(order,    orderDb,    "RW")
-Rel(payment,  payDb,      "RW")
-Rel(notify,   notifyDb,   "RW")
+Rel(payment, psp, "списание / выплаты", "HTTPS")
+Rel(notify, ch, "доставка", "HTTPS/API")
 
-' Sync service-to-service
-Rel(order, catalog, "Резерв остатка при чекауте", "gRPC, sync")
+Rel(order, catalog, "резерв остатка", "sync gRPC")
 
-' Events: producers
-Rel(identity, bus, "user.registered, user.verified",          "publish, async")
-Rel(catalog,  bus, "product.created/updated/price_changed",   "publish, async")
-Rel(order,    bus, "order.created/paid/shipped/cancelled",    "publish, async")
-Rel(payment,  bus, "payment.authorized/captured/refunded",    "publish, async")
-
-' Events: consumers
-Rel(feed,    bus, "consumes product.* и user events", "subscribe, async")
-Rel(notify,  bus, "consumes order.*, payment.*, user.*", "subscribe, async")
-Rel(order,   bus, "consumes payment.* (saga)",        "subscribe, async")
-Rel(payment, bus, "consumes order.created (saga)",    "subscribe, async")
-
-' External
-Rel(payment, psp,   "Списания и выплаты", "REST sync + webhooks")
-Rel(notify,  email, "Отправка писем",     "SMTP / REST")
-Rel(notify,  push,  "Push-уведомления",   "HTTPS")
-Rel(notify,  sms,   "SMS",                "HTTPS")
+note right of mp
+    У каждого сервиса **своя БД**.
+    Никаких shared DB между сервисами.
+    Детали владения данными см. README → §7.
+end note
 
 @enduml

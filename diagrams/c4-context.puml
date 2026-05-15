@@ -3,28 +3,19 @@
 
 LAYOUT_WITH_LEGEND()
 
-title C4 Context — Marketplace Platform
+title C4 Context — Marketplace (упрощённо)
 
-Person(buyer,  "Покупатель",        "Ищет товары, оформляет заказы, отслеживает доставку")
-Person(seller, "Продавец",          "Загружает каталог, управляет ценами/остатками, получает выплаты")
-Person(ops,    "Оператор поддержки", "Модерация контента, расследование инцидентов")
+Person(buyer,  "Покупатель", "Покупка")
+Person(seller, "Продавец", "Каталог и продажи")
 
-System(marketplace, "Marketplace Platform", "Двусторонняя цифровая платформа:\nкаталог, заказы, платежи, лента, уведомления")
+System(marketplace, "Marketplace Platform", "Каталог, заказы, лента, платежи, уведомления")
 
-System_Ext(psp,   "Payment Provider", "Эквайринг и выплаты\n(Stripe / ЮKassa / СБП)")
-System_Ext(email, "Email Provider",   "Транзакционная почта")
-System_Ext(push,  "Push Provider",    "APNs / FCM")
-System_Ext(sms,   "SMS Provider",     "SMS-шлюз")
-System_Ext(kyc,   "KYC Provider",     "Верификация продавцов")
+System_Ext(psp, "Payment Provider", "Приём платежей и выплаты продавцам")
+System_Ext(ext, "Прочие внешние сервисы", "Уведомления (email/push/sms),\nверификация продавца (KYC)")
 
-Rel(buyer,  marketplace, "Использует через web/mobile", "HTTPS")
-Rel(seller, marketplace, "Управляет каталогом и выплатами", "HTTPS")
-Rel(ops,    marketplace, "Модерация и поддержка", "HTTPS, внутренний admin UI")
-
-Rel(marketplace, psp,   "Авторизация платежей и выплаты продавцам", "REST + webhooks")
-Rel(marketplace, email, "Отправка писем",          "SMTP / REST API")
-Rel(marketplace, push,  "Push-уведомления",        "HTTPS")
-Rel(marketplace, sms,   "SMS-уведомления",         "HTTPS")
-Rel(marketplace, kyc,   "Проверка продавцов",      "REST")
+Rel(buyer, marketplace, "Использует", "HTTPS")
+Rel(seller, marketplace, "Использует", "HTTPS")
+Rel(marketplace, psp, "Платежи", "REST + webhooks")
+Rel(marketplace, ext, "Интеграции", "HTTPS/API")
 
 @enduml
