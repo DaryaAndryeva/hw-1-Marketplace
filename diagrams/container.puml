@@ -1,0 +1,63 @@
+@startuml C4-Container-Marketplace
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+title C4 Container - Marketplace
+
+Person(buyer, "Покупатель", "Просматривает ленту, оформляет заказы")
+Person(seller, "Продавец", "Ведёт каталог, получает выплаты")
+
+System_Boundary(mp, "Marketplace") {
+    Container(web, "Web / Mobile App", "React / iOS / Android", "Клиентское приложение")
+    Container(gw, "API Gateway", "Python, FastAPI", "Единая точка входа, маршрутизация запросов")
+
+    Container(users, "Users Service", "Python", "Пользователи, авторизация, профиль")
+    ContainerDb(users_db, "Users DB", "PostgreSQL", "Пользователи, сессии")
+
+    Container(catalog, "Catalog Service", "Python", "Товары, категории, остатки")
+    ContainerDb(catalog_db, "Catalog DB", "PostgreSQL", "Товары, категории")
+
+    Container(recs, "Recommendations Service", "Python", "Персональная лента")
+    ContainerDb(recs_db, "Recs DB", "PostgreSQL", "История взаимодействий")
+
+    Container(orders, "Orders Service", "Python", "Корзина, заказы, статусы")
+    ContainerDb(orders_db, "Orders DB", "PostgreSQL", "Корзины, заказы")
+
+    Container(payments, "Payments Service", "Python", "Платежи и выплаты")
+    ContainerDb(payments_db, "Payments DB", "PostgreSQL", "Платежи, транзакции")
+
+    Container(notify, "Notifications Service", "Python", "Уведомления о статусах")
+    ContainerDb(notify_db, "Notify DB", "PostgreSQL", "История отправок")
+}
+
+System_Ext(psp, "Payment Provider", "Внешняя платёжная система")
+System_Ext(channels, "Email / Push / SMS", "Внешние провайдеры уведомлений")
+
+Rel(buyer, web, "Использует", "HTTPS")
+Rel(seller, web, "Использует", "HTTPS")
+Rel(web, gw, "Запросы API", "REST/HTTPS")
+
+Rel(gw, users, "REST")
+Rel(gw, catalog, "REST")
+Rel(gw, recs, "REST")
+Rel(gw, orders, "REST")
+Rel(gw, payments, "REST")
+Rel(gw, notify, "REST")
+
+Rel(recs, catalog, "Данные о товарах", "REST")
+Rel(recs, users, "Данные о пользователе", "REST")
+Rel(orders, catalog, "Проверка остатков", "REST")
+Rel(orders, payments, "Списание", "REST")
+Rel(orders, notify, "Уведомление о статусе", "REST")
+
+Rel(users, users_db, "Чтение / запись", "SQL")
+Rel(catalog, catalog_db, "Чтение / запись", "SQL")
+Rel(recs, recs_db, "Чтение / запись", "SQL")
+Rel(orders, orders_db, "Чтение / запись", "SQL")
+Rel(payments, payments_db, "Чтение / запись", "SQL")
+Rel(notify, notify_db, "Чтение / запись", "SQL")
+
+Rel(payments, psp, "Платежи", "HTTPS")
+Rel(notify, channels, "Отправка", "HTTPS")
+
+@enduml

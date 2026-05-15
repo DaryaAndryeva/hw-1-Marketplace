@@ -1,5 +1,7 @@
 services:
   api-gateway:
-    build: ./services/api-gateway
+    build: ./api-gateway
+    container_name: marketplace-api-gateway
     ports:
       - "8080:8080"
+    restart: unless-stopped

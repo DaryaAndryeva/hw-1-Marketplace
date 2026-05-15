@@ -1,11 +1,6 @@
 __pycache__/
 *.pyc
-*.pyo
 .venv/
 .env
 .git
-.gitignore
-.idea/
-.vscode/
 .DS_Store
-README.md
