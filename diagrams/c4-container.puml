@@ -9,7 +9,7 @@ Person(seller, "Продавец")
 System_Boundary(mp, "Marketplace") {
 
     Container(web, "Web / приложение", "React / Mobile", "")
-    Container(gw, "API Gateway", "FastAPI", "точка входа")
+    Container(gw, "API Gateway", "FastAPI", "")
 
     Container(identity, "Identity", "", "")
     Container(catalog, "Catalog", "", "")
@@ -18,7 +18,6 @@ System_Boundary(mp, "Marketplace") {
     Container(payment, "Payments", "", "")
     Container(notify, "Notifications", "", "")
 
-    ContainerQueue(bus, "Kafka", "", "")
 }
 
 System_Ext(psp, "Payment provider")
@@ -28,21 +27,19 @@ Rel(buyer, web, "HTTPS")
 Rel(seller, web, "HTTPS")
 Rel(web, gw, "REST")
 
-Rel(gw, identity, "")
-Rel(gw, catalog, "")
-Rel(gw, feed, "")
-Rel(gw, order, "")
-Rel(gw, payment, "")
+Rel(gw, identity, "REST")
+Rel(gw, catalog, "REST")
+Rel(gw, feed, "REST")
+Rel(gw, order, "REST")
+Rel(gw, payment, "REST")
+Rel(gw, notify, "REST")
 
-Rel(catalog, bus, "")
-Rel(order, bus, "")
-Rel(identity, bus, "")
-Rel(payment, bus, "")
-Rel(bus, feed, "")
-Rel(bus, notify, "")
+Rel(order, catalog, "REST")
+Rel(catalog, feed, "REST")
+Rel(order, notify, "REST")
+Rel(payment, notify, "REST")
 
-Rel(order, catalog, "")
-Rel(payment, psp, "")
-Rel(notify, ch, "")
+Rel(payment, psp, "HTTPS")
+Rel(notify, ch, "HTTPS")
 
 @enduml
