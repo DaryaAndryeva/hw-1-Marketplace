@@ -1,7 +1,5 @@
 # ДЗ-1. Маркетплейс: C4 + сервис в Docker
 
-Архитектура цифрового маркетплейса на уровне C4 Container и один работающий сервис (`api-gateway`), поднимаемый в Docker. По условию задания бизнес-логика не реализуется.
-
 ## Структура
 
 ```
@@ -44,7 +42,7 @@ flowchart TB
             direction LR
             users["Users"]:::service
             catalog["Catalog"]:::service
-            recs["Recommendations"]:::service
+            recs["Recommendations<br/><i>без БД</i>"]:::service
             orders["Orders"]:::service
             payments["Payments"]:::service
             notify["Notifications"]:::service
@@ -53,14 +51,12 @@ flowchart TB
             direction LR
             users_db[("Users DB")]:::db
             catalog_db[("Catalog DB")]:::db
-            recs_db[("Recs DB")]:::db
             orders_db[("Orders DB")]:::db
             payments_db[("Payments DB")]:::db
             notify_db[("Notify DB")]:::db
         end
         users --- users_db
         catalog --- catalog_db
-        recs --- recs_db
         orders --- orders_db
         payments --- payments_db
         notify --- notify_db
@@ -87,20 +83,9 @@ flowchart TB
     style dbs_row fill:transparent,stroke-width:0px
 ```
 
-### Контейнеры и владение данными
-
-| Контейнер | Ответственность | Своя БД |
-|---|---|---|
-| Web / Mobile App | Клиентское приложение | — |
-| API Gateway | Единая точка входа, маршрутизация | — |
-| Users | Пользователи, авторизация, профиль | Users DB |
-| Catalog | Товары, категории, остатки | Catalog DB |
-| Recommendations | Персональная лента | Recs DB |
-| Orders | Корзина, заказы, статусы | Orders DB |
-| Payments | Платежи и выплаты | Payments DB |
-| Notifications | Уведомления о статусах | Notify DB |
-
 Каждый доменный сервис владеет своей БД, общих баз между сервисами нет — доступ к чужим данным только через REST API соответствующего сервиса. Это даёт независимое масштабирование, изоляцию платежей и персональных данных и прямое соответствие пунктам ТЗ (лента → Recommendations, каталог → Catalog, пользователи → Users, заказы → Orders, платежи → Payments, уведомления → Notifications).
+
+Recommendations — единственный сервис без собственной БД: у него нет своих доменных сущностей, он на каждый запрос собирает ленту, дёргая Users (профиль) и Catalog (товары). Логи взаимодействий и кеши предсказаний (Redis / фича-стор) можно ввести эволюционно позже, когда понадобится более тяжёлая персонализация.
 
 В Docker в рамках ДЗ поднимается один сервис — `api-gateway`, как точка входа в систему.
 
