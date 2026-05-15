@@ -1,56 +1,48 @@
 @startuml C4-Container-Marketplace
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
-LAYOUT_WITH_LEGEND()
-LAYOUT_TOP_DOWN()
+title C4 Container - Marketplace
 
-title C4 Container — Marketplace (упрощённо)
-
-Person(buyer,  "Покупатель")
+Person(buyer, "Покупатель")
 Person(seller, "Продавец")
 
 System_Boundary(mp, "Marketplace") {
 
-    Container(web, "Web / Mobile App", "", "Клиент")
-    Container(gw,  "API Gateway", "FastAPI", "Точка входа *(поднимается в этом ДЗ)*")
+    Container(web, "Web / приложение", "React / Mobile", "")
+    Container(gw, "API Gateway", "FastAPI", "точка входа")
 
-    Container(identity,   "Identity",    "", "Пользователи, роли *(своя БД)*")
-    Container(catalog,    "Catalog",     "", "Товары, остатки, цены *(своя БД)*")
-    Container(feed,       "Search & Feed", "", "Поиск и лента *(свои хранилища)*")
-    Container(order,      "Ordering",    "", "Корзина, заказы *(своя БД)*")
-    Container(payment,    "Payments",    "", "Платежи, выплаты *(своя БД, PCI)*")
-    Container(notify,     "Notifications", "", "Отправка уведомлений *(своя БД)*")
+    Container(identity, "Identity", "", "")
+    Container(catalog, "Catalog", "", "")
+    Container(feed, "Search and Feed", "", "")
+    Container(order, "Ordering", "", "")
+    Container(payment, "Payments", "", "")
+    Container(notify, "Notifications", "", "")
 
-    ContainerQueue(bus, "Kafka", "", "Обмен событиями между доменами")
+    ContainerQueue(bus, "Kafka", "", "")
 }
 
-System_Ext(psp,   "Payment Provider", "")
-System_Ext(ch, "Каналы уведомлений", "Email / Push / SMS провайдеры")
+System_Ext(psp, "Payment provider")
+System_Ext(ch, "Email / Push / SMS")
 
-Rel(buyer,  web, "HTTPS")
+Rel(buyer, web, "HTTPS")
 Rel(seller, web, "HTTPS")
-Rel(web, gw, "HTTPS / REST")
+Rel(web, gw, "REST")
 
-Rel(gw, identity, "прокси", "sync REST/gRPC")
-Rel(gw, catalog,  "прокси", "sync")
-Rel(gw, feed,     "прокси", "sync")
-Rel(gw, order,    "прокси", "sync")
-Rel(gw, payment,  "прокси", "sync")
+Rel(gw, identity, "")
+Rel(gw, catalog, "")
+Rel(gw, feed, "")
+Rel(gw, order, "")
+Rel(gw, payment, "")
 
-Rel(catalog, bus, "события", "Kafka")
-Rel(order,   bus, "события", "Kafka")
-Rel(bus, feed, "события", "Kafka")
-Rel(bus, notify, "события", "Kafka")
+Rel(catalog, bus, "")
+Rel(order, bus, "")
+Rel(identity, bus, "")
+Rel(payment, bus, "")
+Rel(bus, feed, "")
+Rel(bus, notify, "")
 
-Rel(payment, psp, "списание / выплаты", "HTTPS")
-Rel(notify, ch, "доставка", "HTTPS/API")
-
-Rel(order, catalog, "резерв остатка", "sync gRPC")
-
-note right of mp
-    У каждого сервиса **своя БД**.
-    Никаких shared DB между сервисами.
-    Детали владения данными см. README → §7.
-end note
+Rel(order, catalog, "")
+Rel(payment, psp, "")
+Rel(notify, ch, "")
 
 @enduml

@@ -1,21 +1,19 @@
 @startuml C4-Context-Marketplace
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
 
-LAYOUT_WITH_LEGEND()
+title C4 Context - Marketplace
 
-title C4 Context — Marketplace (упрощённо)
+Person(buyer, "Покупатель")
+Person(seller, "Продавец")
 
-Person(buyer,  "Покупатель", "Покупка")
-Person(seller, "Продавец", "Каталог и продажи")
+System(marketplace, "Marketplace", "магазин")
 
-System(marketplace, "Marketplace Platform", "Каталог, заказы, лента, платежи, уведомления")
+System_Ext(psp, "Payment provider")
+System_Ext(ext, "уведомления, KYC", "")
 
-System_Ext(psp, "Payment Provider", "Приём платежей и выплаты продавцам")
-System_Ext(ext, "Прочие внешние сервисы", "Уведомления (email/push/sms),\nверификация продавца (KYC)")
-
-Rel(buyer, marketplace, "Использует", "HTTPS")
-Rel(seller, marketplace, "Использует", "HTTPS")
-Rel(marketplace, psp, "Платежи", "REST + webhooks")
-Rel(marketplace, ext, "Интеграции", "HTTPS/API")
+Rel(buyer, marketplace, "HTTPS")
+Rel(seller, marketplace, "HTTPS")
+Rel(marketplace, psp, "REST")
+Rel(marketplace, ext, "API")
 
 @enduml
