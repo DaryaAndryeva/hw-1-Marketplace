@@ -19,71 +19,76 @@ hw-1/
 
 ## C4 Container
 
-Исходник: [`diagrams/container.puml`](diagrams/container.puml). Версия в Mermaid для быстрого просмотра:
+Исходник: [`diagrams/container.puml`](diagrams/container.puml).
+
+### Общий вид: запросы пользователя
+
+Основной поток — сплошные стрелки сверху вниз: клиент идёт в Web, Web в Gateway, Gateway в доменные сервисы. Внешние интеграции справа.
 
 ```mermaid
 flowchart TB
-    buyer(("Покупатель"))
-    seller(("Продавец"))
+    classDef actor fill:#fef3c7,stroke:#a16207,color:#000
+    classDef client fill:#dbeafe,stroke:#1d4ed8,color:#000
+    classDef gateway fill:#fed7aa,stroke:#9a3412,color:#000
+    classDef service fill:#dcfce7,stroke:#166534,color:#000
+    classDef ext fill:#fecaca,stroke:#991b1b,color:#000
 
-    subgraph mp["Marketplace"]
-        web["Web / Mobile App<br/><i>React / iOS / Android</i>"]
-        gw["API Gateway<br/><i>FastAPI</i>"]
+    buyer(("Покупатель")):::actor
+    seller(("Продавец")):::actor
 
-        subgraph services["Доменные сервисы"]
-            users["Users"]
-            catalog["Catalog"]
-            recs["Recommendations"]
-            orders["Orders"]
-            payments["Payments"]
-            notify["Notifications"]
-        end
+    web["Web / Mobile App<br/><i>React / iOS / Android</i>"]:::client
+    gw["API Gateway<br/><i>FastAPI</i>"]:::gateway
 
-        users_db[("Users DB")]
-        catalog_db[("Catalog DB")]
-        recs_db[("Recs DB")]
-        orders_db[("Orders DB")]
-        payments_db[("Payments DB")]
-        notify_db[("Notify DB")]
+    subgraph svc["Доменные сервисы (у каждого своя БД)"]
+        direction LR
+        users["Users"]:::service
+        catalog["Catalog"]:::service
+        recs["Recommendations"]:::service
+        orders["Orders"]:::service
+        payments["Payments"]:::service
+        notify["Notifications"]:::service
     end
 
-    psp["Payment Provider"]
-    channels["Email / Push / SMS"]
+    psp["Payment Provider"]:::ext
+    channels["Email / Push / SMS"]:::ext
 
     buyer -- HTTPS --> web
     seller -- HTTPS --> web
     web -- REST --> gw
-
-    gw --> users
-    gw --> catalog
-    gw --> recs
-    gw --> orders
-    gw --> payments
-    gw --> notify
-
-    recs --> catalog
-    recs --> users
-    orders --> catalog
-    orders --> payments
-    orders --> notify
-
-    users --> users_db
-    catalog --> catalog_db
-    recs --> recs_db
-    orders --> orders_db
-    payments --> payments_db
-    notify --> notify_db
+    gw -- REST --> svc
 
     payments -- HTTPS --> psp
     notify -- HTTPS --> channels
 ```
 
-### Контейнеры и зоны ответственности
+### Межсервисные вызовы
 
-| Контейнер | Технология | Ответственность | Свои данные |
+Только взаимодействия между доменными сервисами — без актёров и web. Все стрелки — синхронный REST.
+
+```mermaid
+flowchart LR
+    classDef service fill:#dcfce7,stroke:#166534,color:#000
+
+    users["Users"]:::service
+    catalog["Catalog"]:::service
+    recs["Recommendations"]:::service
+    orders["Orders"]:::service
+    payments["Payments"]:::service
+    notify["Notifications"]:::service
+
+    recs -- профиль --> users
+    recs -- товары --> catalog
+    orders -- остатки --> catalog
+    orders -- списание --> payments
+    orders -- статус --> notify
+```
+
+### Контейнеры и владение данными
+
+| Контейнер | Технология | Ответственность | Своя БД |
 |---|---|---|---|
 | Web / Mobile App | React / iOS / Android | Клиент | — |
-| API Gateway | FastAPI | Единая точка входа, маршрутизация | — |
+| API Gateway | Python, FastAPI | Единая точка входа, маршрутизация | — |
 | Users | — | Пользователи, авторизация, профиль | Users DB |
 | Catalog | — | Товары, категории, остатки | Catalog DB |
 | Recommendations | — | Персональная лента | Recs DB |
@@ -91,9 +96,9 @@ flowchart TB
 | Payments | — | Платежи и выплаты | Payments DB |
 | Notifications | — | Уведомления о статусах | Notify DB |
 
-Каждый доменный сервис владеет своей БД, общих баз между сервисами нет; обращение к чужим данным — только через REST API соответствующего сервиса. Это даёт независимое масштабирование, изоляцию платежей и персональных данных, и прямое соответствие пунктам ТЗ (лента → Recommendations, каталог → Catalog, пользователи → Users, заказы → Orders, платежи → Payments, уведомления → Notifications).
+Каждый доменный сервис владеет своей БД, общих баз между сервисами нет — доступ к чужим данным только через REST API соответствующего сервиса. Это даёт независимое масштабирование, изоляцию платежей и персональных данных и прямое соответствие пунктам ТЗ (лента → Recommendations, каталог → Catalog, пользователи → Users, заказы → Orders, платежи → Payments, уведомления → Notifications).
 
-В Docker в рамках ДЗ поднимается один сервис — `api-gateway`, поскольку именно он является точкой входа в систему и удобен для демонстрации `/health`-endpoint'а.
+В Docker в рамках ДЗ поднимается один сервис — `api-gateway`, как точка входа в систему.
 
 ## Запуск
 
