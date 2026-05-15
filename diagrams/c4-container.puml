@@ -11,11 +11,11 @@ System_Boundary(mp, "Marketplace") {
     Container(web, "Web / приложение", "React / Mobile", "")
     Container(gw, "API Gateway", "FastAPI", "")
 
-    Container(identity, "Identity", "", "")
+    Container(users, "Users", "", "")
     Container(catalog, "Catalog", "", "")
-    Container(feed, "Search and Feed", "", "")
-    Container(order, "Ordering", "", "")
-    Container(payment, "Payments", "", "")
+    Container(recs, "Recommendations", "", "")
+    Container(orders, "Orders", "", "")
+    Container(payments, "Payments", "", "")
     Container(notify, "Notifications", "", "")
 
 }
@@ -27,19 +27,20 @@ Rel(buyer, web, "HTTPS")
 Rel(seller, web, "HTTPS")
 Rel(web, gw, "REST")
 
-Rel(gw, identity, "REST")
+Rel(gw, users, "REST")
 Rel(gw, catalog, "REST")
-Rel(gw, feed, "REST")
-Rel(gw, order, "REST")
-Rel(gw, payment, "REST")
+Rel(gw, recs, "REST")
+Rel(gw, orders, "REST")
+Rel(gw, payments, "REST")
 Rel(gw, notify, "REST")
 
-Rel(order, catalog, "REST")
-Rel(catalog, feed, "REST")
-Rel(order, notify, "REST")
-Rel(payment, notify, "REST")
+Rel(recs, catalog, "REST")
+Rel(recs, users, "REST")
+Rel(orders, catalog, "REST")
+Rel(orders, payments, "REST")
+Rel(orders, notify, "REST")
 
-Rel(payment, psp, "HTTPS")
+Rel(payments, psp, "HTTPS")
 Rel(notify, ch, "HTTPS")
 
 @enduml

@@ -17,12 +17,12 @@
 
 | Домен | За что отвечает |
 |-------|----------------|
-| Identity & Access | пользователи, вход, роли, KYC продавца |
+| Users | пользователи (покупатели и продавцы), вход, профиль |
 | Catalog | товары, категории, цены, остатки |
-| Search & Feed | поиск, лента (здесь и персонализация) |
-| Ordering | корзина, заказ, статусы |
-| Payments | платежи, выплаты, возвраты |
-| Notifications | отправка уведомлений по событиям |
+| Recommendations | персональная лента товаров |
+| Orders | корзина, оформление, статусы заказа |
+| Payments | списания, выплаты продавцам, возвраты |
+| Notifications | уведомления о статусах заказа |
 
 Правило: **у каждого сервиса своя база**, общих БД нет. Доступ к чужим данным только через **HTTP API** (или gRPC) другого сервиса.
 
@@ -47,52 +47,86 @@
 
 **Итог:** **вариант B** — отдельный сервис на каждый домен из таблицы. Везде для простоты считаю **синхронные REST-вызовы** между сервисами (без брокера сообщений).
 
-## C4 Context (набросок в Mermaid)
+## C4 Context
 
 ```mermaid
-flowchart LR
-    B["Покупатель"] -->|"HTTPS"| M["Marketplace"]
-    P["Продавец"] -->|"HTTPS"| M
-    M --> PSP["Payment provider"]
-    M --> EXT["уведомления, KYC и т.д."]
+C4Context
+    title C4 Context — Marketplace
+
+    Person(buyer,  "Покупатель",  "ищет товары, оформляет заказы")
+    Person(seller, "Продавец",    "ведёт каталог, получает выплаты")
+
+    System(mp, "Marketplace", "цифровая платформа маркетплейса")
+
+    System_Ext(psp, "Payment provider", "приём платежей и выплаты")
+    System_Ext(ch,  "Каналы уведомлений", "email / push / SMS")
+
+    Rel(buyer,  mp, "HTTPS")
+    Rel(seller, mp, "HTTPS")
+    Rel(mp, psp, "REST")
+    Rel(mp, ch,  "HTTPS")
 ```
 
-PlantUML: [`diagrams/c4-context.puml`](diagrams/c4-context.puml).
+PlantUML-версия: [`diagrams/c4-context.puml`](diagrams/c4-context.puml).
 
 ## C4 Container (основная диаграмма для ДЗ)
 
 ```mermaid
-flowchart TB
-    B["Покупатель"] --> WEB["Web / приложение"]
-    S["Продавец"] --> WEB
-    WEB --> GW["API Gateway"]
-    GW --> ID["Identity"]
-    GW --> CAT["Catalog"]
-    GW --> FEED["Search and Feed"]
-    GW --> ORD["Ordering"]
-    GW --> PAY["Payments"]
-    GW --> NT["Notifications"]
-    ORD --> CAT
-    CAT --> FEED
-    ORD --> NT
-    PAY --> NT
-    PAY --> PSP["Payment provider"]
-    NT --> SND["Email / Push / SMS"]
+C4Container
+    title C4 Container — Marketplace
+
+    Person(buyer,  "Покупатель")
+    Person(seller, "Продавец")
+
+    System_Boundary(mp, "Marketplace") {
+        Container(web, "Web / приложение", "React / Mobile", "клиент")
+        Container(gw,  "API Gateway", "FastAPI", "единая точка входа")
+
+        Container(users,    "Users",           "сервис", "пользователи, авторизация")
+        Container(catalog,  "Catalog",         "сервис", "товары, цены, остатки")
+        Container(recs,     "Recommendations", "сервис", "персональная лента")
+        Container(orders,   "Orders",          "сервис", "корзина, заказы, статусы")
+        Container(payments, "Payments",        "сервис", "платежи и выплаты")
+        Container(notify,   "Notifications",   "сервис", "уведомления о статусах")
+    }
+
+    System_Ext(psp, "Payment provider")
+    System_Ext(ch,  "Email / Push / SMS")
+
+    Rel(buyer,  web, "HTTPS")
+    Rel(seller, web, "HTTPS")
+    Rel(web, gw, "REST")
+
+    Rel(gw, users,    "REST")
+    Rel(gw, catalog,  "REST")
+    Rel(gw, recs,     "REST")
+    Rel(gw, orders,   "REST")
+    Rel(gw, payments, "REST")
+    Rel(gw, notify,   "REST")
+
+    Rel(recs,   catalog,  "REST")
+    Rel(recs,   users,    "REST")
+    Rel(orders, catalog,  "REST")
+    Rel(orders, payments, "REST")
+    Rel(orders, notify,   "REST")
+
+    Rel(payments, psp, "HTTPS")
+    Rel(notify,   ch,  "HTTPS")
 ```
 
-Стрелки — **синхронные** вызовы между сервисами (REST). Gateway — единственная точка входа с клиента. Ordering дергает Catalog при резерве, Catalog после изменения товара дергает Search & Feed для обновления индекса, Ordering и Payments дергают Notifications при смене статуса. Упрощение: без очередей и шины.
+Все стрелки — синхронные REST-вызовы. Gateway — единственная точка входа с клиента. Recommendations ходит за товарами в Catalog и за данными пользователя в Users, чтобы собрать ленту. Orders при оформлении проверяет остаток в Catalog, дёргает Payments на списание и Notifications на письмо/пуш. Очередей и шины нет — это упрощение.
 
-PlantUML: [`diagrams/c4-container.puml`](diagrams/c4-container.puml).
+PlantUML-версия: [`diagrams/c4-container.puml`](diagrams/c4-container.puml).
 
 ## Домены → сервисы и базы своих доменов
 
 | Сервис | Домен | Данные (владеет) |
 |--------|-------|-------------------|
 | API Gateway | — | без своей БД |
-| Identity | Identity & Access | пользователи, сессии, профиль продавца |
-| Catalog | Catalog | товары, SKU, остатки, цены |
-| Search & Feed | Search & Feed | индекс поиска, данные для ленты |
-| Ordering | Ordering | корзина, заказы, позиции |
+| Users | Users | пользователи, профиль, авторизация |
+| Catalog | Catalog | товары, категории, цены, остатки |
+| Recommendations | Recommendations | история просмотров, данные для ленты |
+| Orders | Orders | корзина, заказы, статусы |
 | Payments | Payments | платежи, транзакции, выплаты |
 | Notifications | Notifications | отправки, шаблоны |
 
@@ -100,11 +134,12 @@ PlantUML: [`diagrams/c4-container.puml`](diagrams/c4-container.puml).
 
 | Откуда | Куда | Зачем |
 |--------|------|-------|
-| Gateway | остальные backend-сервисы | запросы из приложения |
-| Ordering | Catalog | резерв остатка |
-| Catalog | Search & Feed | обновить поиск/ленту после правок каталога |
-| Ordering, Payments | Notifications | отправить уведомление пользователю |
-| Payments | внешний PSP | платёж |
+| Gateway | остальные сервисы | запросы из приложения |
+| Recommendations | Catalog, Users | собрать ленту под пользователя |
+| Orders | Catalog | проверить и зарезервировать остаток |
+| Orders | Payments | списать деньги |
+| Orders | Notifications | уведомить о смене статуса |
+| Payments | внешний PSP | сам платёж |
 | Notifications | провайдеры | письмо / пуш / SMS |
 
 ## Сервис в Docker
