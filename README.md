@@ -22,7 +22,7 @@ hw-1/
 Сплошные стрелки — основной поток запроса пользователя (`клиент → Web → Gateway → доменные сервисы`) и интеграции с внешними системами. Пунктирные с подписями — синхронные REST-вызовы между доменными сервисами. Цветовая палитра соответствует C4: actors тёмно-синие, контейнеры и БД — синие, внешние системы — серые.
 
 ```mermaid
-flowchart TB
+flowchart LR
     classDef actor fill:#08427B,stroke:#052E5B,color:#fff
     classDef container fill:#438DD5,stroke:#2C6FAB,color:#fff
     classDef db fill:#438DD5,stroke:#2C6FAB,color:#fff
