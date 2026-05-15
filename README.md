@@ -1,19 +1,29 @@
 # ДЗ-1. Маркетплейс: архитектура (C4) + сервис в Docker
 
-Задание: продумать архитектуру маркетплейса, нарисовать **C4 уровень Container**, поднять **один** сервис в Docker с **`GET /health` → 200 OK**. Логику бизнеса не пишем — только описание и заглушка сервиса.
+В этом README пишу решение **по шагам, как делал**: разобрал ТЗ → выделил домены → выбрал способ разбиения системы → нарисовал C4 на четырёх уровнях → поднял один сервис в Docker.
 
-## Что должна уметь система (из ТЗ)
+---
+
+## Шаг 1. Разбираю задание
+
+Из ТЗ маркетплейс должен поддерживать:
 
 | Функция | Кратко |
-|---|-----|
+|---|---|
 | Персонализированная лента | главная под пользователя |
 | Каталог | продавцы ведут товары и остатки |
 | Пользователи | покупатели и продавцы, авторизация, профиль |
 | Заказы | корзина, оформление, статусы |
-| Платежи и учёт | списание, выплаты продавцам, возвраты |
-| Уведомления | письма/пуши/SMS про заказ |
+| Платежи | списания, выплаты продавцам, возвраты |
+| Уведомления | письма/пуши/SMS о статусах заказа |
 
-## Домены (bounded context)
+Дополнительно из ТЗ: бизнес-логику писать **не нужно**; нужен **один любой сервис в Docker** с **`GET /health` → 200 OK**.
+
+---
+
+## Шаг 2. Выделяю домены (bounded contexts)
+
+Каждый пункт ТЗ ложится на свой домен. У каждого домена своя ответственность и свои данные.
 
 | Домен | За что отвечает |
 |-------|----------------|
@@ -24,129 +34,216 @@
 | Payments | списания, выплаты продавцам, возвраты |
 | Notifications | уведомления о статусах заказа |
 
-Правило: **у каждого сервиса своя база**, общих БД нет. Доступ к чужим данным только через **HTTP API** (или gRPC) другого сервиса.
+Правило: **у каждого сервиса своя база данных**, общих БД между сервисами нет. К чужим данным — только через **HTTP API** другого сервиса.
 
-Так мы получаем **высокое сцепление (cohesion) внутри сервиса** — в одном месте живёт связанная по смыслу логика и данные одного домена. **Связанность между сервисами (coupling) держим низкой**: сервис не лезет в чужую БД, знает только контракт чужого API, без общих таблиц.
+Это даёт:
 
-## Варианты разнесения системы
+- **высокий cohesion внутри сервиса** — одна предметная область и её данные в одном месте;
+- **низкий coupling между сервисами** — сервис знает только контракт чужого API, не лезет в чужие таблицы.
 
-**A. Один большой монолит** — все модули в одном деплое, одна БД (или схемы в одной).
+---
+
+## Шаг 3. Выбираю способ разбиения системы
+
+Рассмотрел три варианта.
+
+**A. Монолит.** Всё в одном деплое, общая БД.
 
 - Плюсы: проще разрабатывать и деплоить в начале, проще транзакции внутри.
-- Минусы: один репозиторий нагрузки на всё приложение; платежная зона смешивается с остальным кодом.
+- Минусы: нагрузка масштабируется только целиком; платежи перемешаны с остальным кодом.
 
-**B. Несколько сервисов по доменам** — ниже взял это (Gateway + отдельные сервисы под таблицу доменов).
+**B. Микросервисы по доменам** — по одному сервису на пункт ТЗ.
 
-- Плюсы: можно масштабировать и выкладывать части отдельно; платежи и персональные данные проще изолировать.
-- Минусы: много сетевых вызовов между сервисами; без общей БД сложнее согласовывать состояние — нужно продумывать сценарии вручную.
+- Плюсы: каждый домен можно масштабировать и выкатывать отдельно; платежи и персональные данные изолированы.
+- Минусы: много межсервисных вызовов; согласованность данных нужно держать вручную (нет общей транзакции).
 
-**C. Отдельно read-сервисы для ленты и поиска** — отдельный контур только на чтение.
+**C. Отдельный read-контур** — отдельные сервисы только под чтение (лента, поиск).
 
-- Плюсы: удобно при очень высокой нагрузке на просмотр.
-- Минусы: лишние контуры для учебного задания; задержка между записью в каталог и отображением в ленте.
+- Плюсы: хорошо при очень высокой нагрузке на чтение.
+- Минусы: лишние сервисы для учебной задачи; задержка между записью и появлением в ленте.
 
-**Итог:** **вариант B** — отдельный сервис на каждый домен из таблицы. Везде для простоты считаю **синхронные REST-вызовы** между сервисами (без брокера сообщений).
+**Выбрал вариант B.** Шесть функций из ТЗ напрямую отображаются в шесть сервисов; персональные данные и платежи в своих сервисах; начинать проще, чем с варианта C. Все вызовы между сервисами для простоты делаю **синхронным REST** (без брокера сообщений).
 
-## C4 Context
+---
 
-```mermaid
-C4Context
-    title C4 Context — Marketplace
+## Шаг 4. Описываю архитектуру через C4
 
-    Person(buyer,  "Покупатель",  "ищет товары, оформляет заказы")
-    Person(seller, "Продавец",    "ведёт каталог, получает выплаты")
+Модель C4 даёт четыре уровня: **Context → Container → Component → Code**. Прохожу все четыре.
 
-    System(mp, "Marketplace", "цифровая платформа маркетплейса")
+### 4.1 Level 1: System Context
 
-    System_Ext(psp, "Payment provider", "приём платежей и выплаты")
-    System_Ext(ch,  "Каналы уведомлений", "email / push / SMS")
-
-    Rel(buyer,  mp, "HTTPS")
-    Rel(seller, mp, "HTTPS")
-    Rel(mp, psp, "REST")
-    Rel(mp, ch,  "HTTPS")
-```
-
-PlantUML-версия: [`diagrams/c4-context.puml`](diagrams/c4-context.puml).
-
-## C4 Container (основная диаграмма для ДЗ)
+Кто пользуется системой и с какими внешними сервисами она общается.
 
 ```mermaid
-C4Container
-    title C4 Container — Marketplace
+flowchart LR
+    buyer(("Покупатель"))
+    seller(("Продавец"))
 
-    Person(buyer,  "Покупатель")
-    Person(seller, "Продавец")
+    subgraph mp["Marketplace<br/>(наша система)"]
+        sys["цифровая платформа<br/>маркетплейса"]
+    end
 
-    System_Boundary(mp, "Marketplace") {
-        Container(web, "Web / приложение", "React / Mobile", "клиент")
-        Container(gw,  "API Gateway", "FastAPI", "единая точка входа")
+    psp["Payment provider<br/>(внешняя система)"]
+    ch["Email / Push / SMS<br/>(внешние провайдеры)"]
 
-        Container(users,    "Users",           "сервис", "пользователи, авторизация")
-        Container(catalog,  "Catalog",         "сервис", "товары, цены, остатки")
-        Container(recs,     "Recommendations", "сервис", "персональная лента")
-        Container(orders,   "Orders",          "сервис", "корзина, заказы, статусы")
-        Container(payments, "Payments",        "сервис", "платежи и выплаты")
-        Container(notify,   "Notifications",   "сервис", "уведомления о статусах")
-    }
-
-    System_Ext(psp, "Payment provider")
-    System_Ext(ch,  "Email / Push / SMS")
-
-    Rel(buyer,  web, "HTTPS")
-    Rel(seller, web, "HTTPS")
-    Rel(web, gw, "REST")
-
-    Rel(gw, users,    "REST")
-    Rel(gw, catalog,  "REST")
-    Rel(gw, recs,     "REST")
-    Rel(gw, orders,   "REST")
-    Rel(gw, payments, "REST")
-    Rel(gw, notify,   "REST")
-
-    Rel(recs,   catalog,  "REST")
-    Rel(recs,   users,    "REST")
-    Rel(orders, catalog,  "REST")
-    Rel(orders, payments, "REST")
-    Rel(orders, notify,   "REST")
-
-    Rel(payments, psp, "HTTPS")
-    Rel(notify,   ch,  "HTTPS")
+    buyer -- HTTPS --> sys
+    seller -- HTTPS --> sys
+    sys -- REST --> psp
+    sys -- HTTPS --> ch
 ```
 
-Все стрелки — синхронные REST-вызовы. Gateway — единственная точка входа с клиента. Recommendations ходит за товарами в Catalog и за данными пользователя в Users, чтобы собрать ленту. Orders при оформлении проверяет остаток в Catalog, дёргает Payments на списание и Notifications на письмо/пуш. Очередей и шины нет — это упрощение.
+Формальная C4-PlantUML версия: [`diagrams/c4-context.puml`](diagrams/c4-context.puml).
 
-PlantUML-версия: [`diagrams/c4-container.puml`](diagrams/c4-container.puml).
+### 4.2 Level 2: Container
 
-## Домены → сервисы и базы своих доменов
+Из каких контейнеров (сервисов и приложений) состоит система. Это основная диаграмма для ДЗ.
 
-| Сервис | Домен | Данные (владеет) |
-|--------|-------|-------------------|
-| API Gateway | — | без своей БД |
-| Users | Users | пользователи, профиль, авторизация |
-| Catalog | Catalog | товары, категории, цены, остатки |
-| Recommendations | Recommendations | история просмотров, данные для ленты |
-| Orders | Orders | корзина, заказы, статусы |
-| Payments | Payments | платежи, транзакции, выплаты |
-| Notifications | Notifications | отправки, шаблоны |
+```mermaid
+flowchart TB
+    buyer(("Покупатель"))
+    seller(("Продавец"))
 
-Связи (всё sync):
+    subgraph mp["Marketplace"]
+        web["Web / Mobile App<br/><i>React / iOS / Android</i>"]
+        gw["API Gateway<br/><i>FastAPI</i>"]
+
+        subgraph services["Сервисы по доменам"]
+            users["Users"]
+            catalog["Catalog"]
+            recs["Recommendations"]
+            orders["Orders"]
+            payments["Payments"]
+            notify["Notifications"]
+        end
+    end
+
+    psp["Payment provider"]
+    ch["Email / Push / SMS"]
+
+    buyer --> web
+    seller --> web
+    web -- REST --> gw
+
+    gw --> users
+    gw --> catalog
+    gw --> recs
+    gw --> orders
+    gw --> payments
+    gw --> notify
+
+    recs --> catalog
+    recs --> users
+    orders --> catalog
+    orders --> payments
+    orders --> notify
+
+    payments -- HTTPS --> psp
+    notify -- HTTPS --> ch
+```
+
+Все стрелки между сервисами — синхронный REST. Gateway — единая точка входа с клиента. Recommendations ходит в Catalog и Users, чтобы собрать персональную ленту. Orders при оформлении проверяет остаток в Catalog, дёргает Payments на списание и Notifications на отправку уведомления.
+
+Формальная C4-PlantUML версия: [`diagrams/c4-container.puml`](diagrams/c4-container.puml).
+
+#### Что владеет какими данными
+
+| Сервис | Данные |
+|---|---|
+| API Gateway | без своей БД |
+| Users | пользователи, профиль, авторизация |
+| Catalog | товары, категории, цены, остатки |
+| Recommendations | история просмотров, данные для ленты |
+| Orders | корзина, заказы, статусы |
+| Payments | платежи, транзакции, выплаты |
+| Notifications | отправки, шаблоны |
+
+#### Кто кого и зачем вызывает (всё sync)
 
 | Откуда | Куда | Зачем |
-|--------|------|-------|
+|---|---|---|
 | Gateway | остальные сервисы | запросы из приложения |
-| Recommendations | Catalog, Users | собрать ленту под пользователя |
+| Recommendations | Catalog, Users | собрать ленту |
 | Orders | Catalog | проверить и зарезервировать остаток |
 | Orders | Payments | списать деньги |
 | Orders | Notifications | уведомить о смене статуса |
 | Payments | внешний PSP | сам платёж |
 | Notifications | провайдеры | письмо / пуш / SMS |
 
-## Сервис в Docker
+### 4.3 Level 3: Component (внутри API Gateway)
 
-Поднят **API Gateway** на FastAPI (`GET /health` → 200), остальное заглушка. Код: [`services/api-gateway/`](services/api-gateway/).
+Из чего состоит сам **API Gateway** — единственный сервис, который реально поднят в Docker. Бизнес-логики нет, но архитектурно компоненты выглядят так.
 
-## Как запустить
+```mermaid
+flowchart TB
+    client(("Клиент"))
+
+    subgraph gw["API Gateway"]
+        router["HTTP Router<br/><i>FastAPI</i>"]
+        health["Health Handler<br/><i>GET /health, GET /ready</i>"]
+        proxy["Service Proxy<br/><i>заглушка — будет проксировать в сервисы</i>"]
+    end
+
+    users["Users service"]
+    catalog["Catalog service"]
+    other["остальные сервисы"]
+
+    client -- HTTP --> router
+    router --> health
+    router --> proxy
+    proxy --> users
+    proxy --> catalog
+    proxy --> other
+```
+
+На этом этапе ДЗ реально реализованы только `Router` и `Health Handler`; `Service Proxy` — заглушка для будущей бизнес-логики.
+
+### 4.4 Level 4: Code
+
+Самый низкий уровень C4 — код реализованного сервиса (`api-gateway`). По C4 этот уровень рисуется редко; здесь это просто карта файлов и функций.
+
+```mermaid
+flowchart TB
+    subgraph code["services/api-gateway/"]
+        dockerfile["Dockerfile"]
+        req["requirements.txt"]
+        subgraph app["app/"]
+            main["main.py"]
+            index_fn["index()<br/><i>GET /</i>"]
+            health_fn["health()<br/><i>GET /health → 200</i>"]
+            ready_fn["ready()<br/><i>GET /ready</i>"]
+        end
+    end
+
+    main --> index_fn
+    main --> health_fn
+    main --> ready_fn
+```
+
+Содержимое: [`services/api-gateway/app/main.py`](services/api-gateway/app/main.py).
+
+---
+
+## Шаг 5. Поднимаю один сервис в Docker
+
+По ТЗ нужно поднять любой один сервис с health-check. Я взял **API Gateway** — он на диаграмме Container и является точкой входа, поэтому на нём учебно показательнее всего.
+
+Что есть в сервисе:
+
+| Метод | Путь | Что делает |
+|---|---|---|
+| GET | `/` | служебная инфо о сервисе |
+| GET | `/health` | возвращает `200 OK` и JSON `{"status":"ok"}` — требование ДЗ |
+| GET | `/ready` | готовность принимать трафик |
+| GET | `/docs` | Swagger UI (автогенерируется FastAPI) |
+
+Конфигурация Docker:
+
+- [`services/api-gateway/Dockerfile`](services/api-gateway/Dockerfile) — образ на `python:3.12-slim`, ставит зависимости, запускает `uvicorn`.
+- [`docker-compose.yml`](docker-compose.yml) — пробрасывает порт `8080`.
+
+---
+
+## Шаг 6. Запуск проекта
 
 Из папки `hw-1`:
 
@@ -155,7 +252,20 @@ docker compose up --build -d
 curl -i http://localhost:8080/health
 ```
 
-Остановить: `docker compose down`.
+Ожидаемый ответ:
+
+```
+HTTP/1.1 200 OK
+content-type: application/json
+
+{"status":"ok","service":"api-gateway","version":"0.1.0"}
+```
+
+Остановить:
+
+```bash
+docker compose down
+```
 
 Локально без Docker:
 
@@ -167,6 +277,8 @@ pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
+---
+
 ## Структура папки
 
 ```
@@ -174,10 +286,12 @@ hw-1/
 ├── README.md
 ├── docker-compose.yml
 ├── diagrams/
-│   ├── c4-context.puml
-│   └── c4-container.puml
-└── services/api-gateway/
-    ├── Dockerfile
-    ├── requirements.txt
-    └── app/main.py
+│   ├── c4-context.puml       # Level 1 в C4-PlantUML
+│   └── c4-container.puml     # Level 2 в C4-PlantUML
+└── services/
+    └── api-gateway/
+        ├── Dockerfile
+        ├── requirements.txt
+        └── app/
+            └── main.py
 ```
