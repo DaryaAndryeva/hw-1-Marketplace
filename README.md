@@ -19,64 +19,90 @@ hw-1/
 
 Исходник: [`diagrams/container.puml`](diagrams/container.puml).
 
-Стандартная нотация C4 Container: actors-стикмены, синие прямоугольники — контейнеры, синие цилиндры — БД, серые блоки — внешние системы, пунктирная рамка — граница системы. Раскладка широкая (LR), у Recommendations собственной БД нет — он не имеет своих сущностей и собирает ленту из Users и Catalog.
+Сплошные стрелки — основной поток запроса пользователя (`клиент → Web → Gateway → доменные сервисы`) и интеграции с внешними системами. Пунктирные с подписями — синхронные REST-вызовы между доменными сервисами. Цветовая палитра соответствует C4: actors тёмно-синие, контейнеры и БД — синие, внешние системы — серые.
 
 ```mermaid
-C4Container
-    title C4 Container - Marketplace
+flowchart TB
+    classDef actor fill:#08427B,stroke:#052E5B,color:#fff
+    classDef container fill:#438DD5,stroke:#2C6FAB,color:#fff
+    classDef db fill:#438DD5,stroke:#2C6FAB,color:#fff
+    classDef ext fill:#999999,stroke:#6B6B6B,color:#fff
 
-    Person(buyer, "Покупатель")
-    Person(seller, "Продавец")
+    buyer(("Покупатель")):::actor
+    seller(("Продавец")):::actor
 
-    System_Boundary(mp, "Marketplace") {
-      Container(web, "Web / Mobile App", "client", "клиентское приложение")
-      Container(gw, "API Gateway", "FastAPI", "единая точка входа, маршрутизация")
+    web["Web / Mobile App"]:::container
+    gw["API Gateway"]:::container
 
-      Container(users, "Users", "service", "пользователи, авторизация, профиль")
-      Container(catalog, "Catalog", "service", "товары, категории, остатки")
-      Container(recs, "Recommendations", "service (stateless)", "персональная лента")
-      Container(orders, "Orders", "service", "корзина, заказы, статусы")
-      Container(payments, "Payments", "service", "платежи и выплаты")
-      Container(notify, "Notifications", "service", "уведомления о статусах")
+    subgraph svc["Доменные сервисы"]
+        direction LR
+        subgraph p_users [" "]
+            users["Users"]:::container
+            users_db[("Users DB")]:::db
+            users --- users_db
+        end
+        subgraph p_catalog [" "]
+            catalog["Catalog"]:::container
+            catalog_db[("Catalog DB")]:::db
+            catalog --- catalog_db
+        end
+        subgraph p_recs [" "]
+            recs["Recommendations<br/><i>stateless</i>"]:::container
+        end
+        subgraph p_orders [" "]
+            orders["Orders"]:::container
+            orders_db[("Orders DB")]:::db
+            orders --- orders_db
+        end
+        subgraph p_payments [" "]
+            payments["Payments"]:::container
+            payments_db[("Payments DB")]:::db
+            payments --- payments_db
+        end
+        subgraph p_notify [" "]
+            notify["Notifications"]:::container
+            notify_db[("Notify DB")]:::db
+            notify --- notify_db
+        end
+    end
 
-      ContainerDb(users_db, "Users DB", "PostgreSQL")
-      ContainerDb(catalog_db, "Catalog DB", "PostgreSQL")
-      ContainerDb(orders_db, "Orders DB", "PostgreSQL")
-      ContainerDb(payments_db, "Payments DB", "PostgreSQL")
-      ContainerDb(notify_db, "Notify DB", "PostgreSQL")
-    }
+    psp["Payment Provider"]:::ext
+    channels["Email / Push / SMS"]:::ext
 
-    System_Ext(psp, "Payment Provider", "внешняя платёжная система")
-    System_Ext(channels, "Email / Push / SMS", "внешние провайдеры уведомлений")
+    buyer -- HTTPS --> web
+    seller -- HTTPS --> web
+    web -- REST --> gw
+    gw -- REST --> svc
 
-    Rel(buyer, web, "HTTPS")
-    Rel(seller, web, "HTTPS")
-    Rel(web, gw, "REST", "HTTPS")
+    recs -. профиль .-> users
+    recs -. товары .-> catalog
+    orders -. остатки .-> catalog
+    orders -. списание .-> payments
+    orders -. статус .-> notify
 
-    Rel(gw, users, "REST")
-    Rel(gw, catalog, "REST")
-    Rel(gw, recs, "REST")
-    Rel(gw, orders, "REST")
-    Rel(gw, payments, "REST")
-    Rel(gw, notify, "REST")
+    payments -- HTTPS --> psp
+    notify -- HTTPS --> channels
 
-    Rel(recs, users, "профиль", "REST")
-    Rel(recs, catalog, "товары", "REST")
-    Rel(orders, catalog, "остатки", "REST")
-    Rel(orders, payments, "списание", "REST")
-    Rel(orders, notify, "статус", "REST")
-
-    Rel(users, users_db, "SQL")
-    Rel(catalog, catalog_db, "SQL")
-    Rel(orders, orders_db, "SQL")
-    Rel(payments, payments_db, "SQL")
-    Rel(notify, notify_db, "SQL")
-
-    Rel(payments, psp, "платежи", "HTTPS")
-    Rel(notify, channels, "отправка", "HTTPS")
-
-    UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="1")
+    style p_users fill:transparent,stroke-width:0px
+    style p_catalog fill:transparent,stroke-width:0px
+    style p_recs fill:transparent,stroke-width:0px
+    style p_orders fill:transparent,stroke-width:0px
+    style p_payments fill:transparent,stroke-width:0px
+    style p_notify fill:transparent,stroke-width:0px
 ```
+
+### Контейнеры и владение данными
+
+| Контейнер | Ответственность | Своя БД |
+|---|---|---|
+| Web / Mobile App | Клиентское приложение | — |
+| API Gateway | Единая точка входа, маршрутизация | — |
+| Users | Пользователи, авторизация, профиль | Users DB |
+| Catalog | Товары, категории, остатки | Catalog DB |
+| Recommendations | Персональная лента | — (читает Users + Catalog) |
+| Orders | Корзина, заказы, статусы | Orders DB |
+| Payments | Платежи и выплаты | Payments DB |
+| Notifications | Уведомления о статусах | Notify DB |
 
 Каждый доменный сервис владеет своей БД, общих баз между сервисами нет — доступ к чужим данным только через REST API соответствующего сервиса. Это даёт независимое масштабирование, изоляцию платежей и персональных данных и прямое соответствие пунктам ТЗ (лента → Recommendations, каталог → Catalog, пользователи → Users, заказы → Orders, платежи → Payments, уведомления → Notifications).
 
