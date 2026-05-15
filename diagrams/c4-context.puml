@@ -1,0 +1,30 @@
+@startuml C4-Context-Marketplace
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+
+title C4 Context — Marketplace Platform
+
+Person(buyer,  "Покупатель",        "Ищет товары, оформляет заказы, отслеживает доставку")
+Person(seller, "Продавец",          "Загружает каталог, управляет ценами/остатками, получает выплаты")
+Person(ops,    "Оператор поддержки", "Модерация контента, расследование инцидентов")
+
+System(marketplace, "Marketplace Platform", "Двусторонняя цифровая платформа:\nкаталог, заказы, платежи, лента, уведомления")
+
+System_Ext(psp,   "Payment Provider", "Эквайринг и выплаты\n(Stripe / ЮKassa / СБП)")
+System_Ext(email, "Email Provider",   "Транзакционная почта")
+System_Ext(push,  "Push Provider",    "APNs / FCM")
+System_Ext(sms,   "SMS Provider",     "SMS-шлюз")
+System_Ext(kyc,   "KYC Provider",     "Верификация продавцов")
+
+Rel(buyer,  marketplace, "Использует через web/mobile", "HTTPS")
+Rel(seller, marketplace, "Управляет каталогом и выплатами", "HTTPS")
+Rel(ops,    marketplace, "Модерация и поддержка", "HTTPS, внутренний admin UI")
+
+Rel(marketplace, psp,   "Авторизация платежей и выплаты продавцам", "REST + webhooks")
+Rel(marketplace, email, "Отправка писем",          "SMTP / REST API")
+Rel(marketplace, push,  "Push-уведомления",        "HTTPS")
+Rel(marketplace, sms,   "SMS-уведомления",         "HTTPS")
+Rel(marketplace, kyc,   "Проверка продавцов",      "REST")
+
+@enduml

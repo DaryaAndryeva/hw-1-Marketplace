@@ -1,0 +1,19 @@
+services:
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    image: marketplace/api-gateway:0.1.0
+    container_name: marketplace-api-gateway
+    restart: unless-stopped
+    environment:
+      SERVICE_VERSION: "0.1.0"
+      ENVIRONMENT: "local"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
