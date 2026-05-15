@@ -37,29 +37,35 @@ flowchart TB
     gw["API Gateway"]:::gateway
 
     subgraph svc["Доменные сервисы"]
-        direction TB
-        subgraph services_row [" "]
-            direction LR
+        direction LR
+        subgraph p_users [" "]
             users["Users"]:::service
-            catalog["Catalog"]:::service
-            recs["Recommendations<br/><i>без БД</i>"]:::service
-            orders["Orders"]:::service
-            payments["Payments"]:::service
-            notify["Notifications"]:::service
-        end
-        subgraph dbs_row [" "]
-            direction LR
             users_db[("Users DB")]:::db
-            catalog_db[("Catalog DB")]:::db
-            orders_db[("Orders DB")]:::db
-            payments_db[("Payments DB")]:::db
-            notify_db[("Notify DB")]:::db
+            users --- users_db
         end
-        users --- users_db
-        catalog --- catalog_db
-        orders --- orders_db
-        payments --- payments_db
-        notify --- notify_db
+        subgraph p_catalog [" "]
+            catalog["Catalog"]:::service
+            catalog_db[("Catalog DB")]:::db
+            catalog --- catalog_db
+        end
+        subgraph p_recs [" "]
+            recs["Recommendations<br/><i>без БД</i>"]:::service
+        end
+        subgraph p_orders [" "]
+            orders["Orders"]:::service
+            orders_db[("Orders DB")]:::db
+            orders --- orders_db
+        end
+        subgraph p_payments [" "]
+            payments["Payments"]:::service
+            payments_db[("Payments DB")]:::db
+            payments --- payments_db
+        end
+        subgraph p_notify [" "]
+            notify["Notifications"]:::service
+            notify_db[("Notify DB")]:::db
+            notify --- notify_db
+        end
     end
 
     psp["Payment Provider"]:::ext
@@ -79,8 +85,12 @@ flowchart TB
     payments -- HTTPS --> psp
     notify -- HTTPS --> channels
 
-    style services_row fill:transparent,stroke-width:0px
-    style dbs_row fill:transparent,stroke-width:0px
+    style p_users fill:transparent,stroke-width:0px
+    style p_catalog fill:transparent,stroke-width:0px
+    style p_recs fill:transparent,stroke-width:0px
+    style p_orders fill:transparent,stroke-width:0px
+    style p_payments fill:transparent,stroke-width:0px
+    style p_notify fill:transparent,stroke-width:0px
 ```
 
 Каждый доменный сервис владеет своей БД, общих баз между сервисами нет — доступ к чужим данным только через REST API соответствующего сервиса. Это даёт независимое масштабирование, изоляцию платежей и персональных данных и прямое соответствие пунктам ТЗ (лента → Recommendations, каталог → Catalog, пользователи → Users, заказы → Orders, платежи → Payments, уведомления → Notifications).
