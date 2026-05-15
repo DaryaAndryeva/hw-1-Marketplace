@@ -21,7 +21,7 @@ hw-1/
 
 Исходник: [`diagrams/container.puml`](diagrams/container.puml).
 
-Сплошные стрелки — основной поток запроса пользователя (`клиент → Web → Gateway → доменные сервисы`) и интеграции с внешними системами. Пунктирные с подписями — синхронные REST-вызовы между доменными сервисами.
+Сплошные стрелки — основной поток запроса пользователя (`клиент → Web → Gateway → доменные сервисы`) и интеграции с внешними системами. Пунктирные с подписями — синхронные REST-вызовы между доменными сервисами. Под каждым сервисом — его собственная БД (общих баз между сервисами нет).
 
 ```mermaid
 flowchart TB
@@ -29,6 +29,7 @@ flowchart TB
     classDef client fill:#dbeafe,stroke:#1d4ed8,color:#000
     classDef gateway fill:#fed7aa,stroke:#9a3412,color:#000
     classDef service fill:#dcfce7,stroke:#166534,color:#000
+    classDef db fill:#e5e7eb,stroke:#374151,color:#000
     classDef ext fill:#fecaca,stroke:#991b1b,color:#000
 
     buyer(("Покупатель")):::actor
@@ -37,14 +38,32 @@ flowchart TB
     web["Web / Mobile App"]:::client
     gw["API Gateway"]:::gateway
 
-    subgraph svc["Доменные сервисы (у каждого своя БД)"]
-        direction LR
-        users["Users"]:::service
-        catalog["Catalog"]:::service
-        recs["Recommendations"]:::service
-        orders["Orders"]:::service
-        payments["Payments"]:::service
-        notify["Notifications"]:::service
+    subgraph svc["Доменные сервисы"]
+        direction TB
+        subgraph services_row [" "]
+            direction LR
+            users["Users"]:::service
+            catalog["Catalog"]:::service
+            recs["Recommendations"]:::service
+            orders["Orders"]:::service
+            payments["Payments"]:::service
+            notify["Notifications"]:::service
+        end
+        subgraph dbs_row [" "]
+            direction LR
+            users_db[("Users DB")]:::db
+            catalog_db[("Catalog DB")]:::db
+            recs_db[("Recs DB")]:::db
+            orders_db[("Orders DB")]:::db
+            payments_db[("Payments DB")]:::db
+            notify_db[("Notify DB")]:::db
+        end
+        users --- users_db
+        catalog --- catalog_db
+        recs --- recs_db
+        orders --- orders_db
+        payments --- payments_db
+        notify --- notify_db
     end
 
     psp["Payment Provider"]:::ext
@@ -63,6 +82,9 @@ flowchart TB
 
     payments -- HTTPS --> psp
     notify -- HTTPS --> channels
+
+    style services_row fill:transparent,stroke-width:0px
+    style dbs_row fill:transparent,stroke-width:0px
 ```
 
 ### Контейнеры и владение данными
